@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>RCE — Relationship Compatibility Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+/* ── RESET & BASE ─────────────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#fff;color:#000;font-family:'Sarabun',sans-serif}
+body{display:flex;flex-direction:column;align-items:center;min-height:100vh}
+
+/* ── QUIZ SCREENS ─────────────────────────────────────────── */
+.screen{
+  display:none;width:100%;max-width:480px;min-height:100vh;
+  padding:32px 24px 40px;flex-direction:column;
+  opacity:0;transform:translateY(14px);
+  transition:opacity .35s ease,transform .35s ease;
+}
+.screen.active{display:flex}
+.screen.visible{opacity:1;transform:translateY(0)}
+
+.intro-eyebrow{font-size:11px;letter-spacing:.2em;color:#999;margin-bottom:12px;text-transform:uppercase}
+.intro-title{font-size:72px;font-weight:800;line-height:.95;letter-spacing:-4px;margin-bottom:6px}
+.intro-rule{width:48px;height:3px;background:#000;margin:20px 0}
+.intro-desc{font-size:16px;line-height:1.75;color:#333;margin-bottom:8px}
+.intro-meta{font-size:13px;color:#aaa;margin-bottom:36px}
+.intro-meta span{display:inline-block;margin-right:16px}
+
+.sa-wrap{flex:1;display:flex;flex-direction:column;justify-content:center}
+.sa-part{font-size:11px;letter-spacing:.18em;color:#bbb;margin-bottom:20px;text-transform:uppercase}
+.sa-title{font-size:40px;font-weight:800;line-height:1.1;margin-bottom:14px;letter-spacing:-1.5px}
+.sa-desc{font-size:15px;color:#555;line-height:1.7;margin-bottom:40px}
+
+.prog-row{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.prog-bar-bg{flex:1;height:2px;background:#e8e8e8}
+.prog-bar-fill{height:100%;background:#000;transition:width .4s ease}
+.prog-num{font-size:12px;color:#bbb;white-space:nowrap;letter-spacing:.05em;min-width:36px;text-align:right}
+.q-section-tag{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#bbb;border-left:2px solid #000;padding-left:8px;margin-bottom:22px}
+.q-text{font-size:22px;font-weight:800;line-height:1.3;margin-bottom:10px;letter-spacing:-.5px}
+.q-scenario{font-size:15px;font-style:italic;color:#555;line-height:1.7;margin-bottom:auto;padding-bottom:28px}
+.choices{display:flex;flex-direction:column;gap:10px;padding-top:12px}
+.choice{
+  width:100%;padding:18px 20px;border:2px solid #000;background:#fff;color:#000;
+  font-size:15px;font-family:'Sarabun',sans-serif;text-align:left;cursor:pointer;
+  line-height:1.55;transition:background .15s,color .15s;border-radius:0;
+}
+.choice:hover,.choice:active{background:#000;color:#fff}
+.choice-lbl{font-weight:800;margin-right:10px;font-size:13px;letter-spacing:.05em}
+
+.btn-primary{
+  width:100%;padding:19px 20px;background:#000;color:#fff;border:none;
+  font-size:17px;font-weight:700;font-family:'Sarabun',sans-serif;cursor:pointer;
+  letter-spacing:.03em;transition:opacity .2s;
+}
+.btn-primary:hover{opacity:.82}
+.btn-outline{
+  width:100%;padding:17px 20px;background:#fff;color:#000;border:2px solid #000;
+  font-size:15px;font-weight:600;font-family:'Sarabun',sans-serif;cursor:pointer;
+  letter-spacing:.02em;transition:background .15s;margin-top:10px;
+}
+.btn-outline:hover{background:#f5f5f5}
+.btn-ghost{
+  width:100%;padding:17px 20px;background:#fff;color:#555;border:1.5px solid #e0e0e0;
+  font-size:15px;font-weight:600;font-family:'Sarabun',sans-serif;cursor:pointer;
+  letter-spacing:.02em;transition:all .15s;margin-top:10px;
+}
+.btn-ghost:hover{border-color:#000;color:#000}
+.btn-disabled{
+  width:100%;padding:17px 20px;background:#fff;color:#ccc;border:2px solid #e0e0e0;
+  font-size:15px;font-weight:600;font-family:'Sarabun',sans-serif;cursor:not-allowed;
+  letter-spacing:.02em;margin-top:10px;
+}
+
+.result-card{border:2px solid #000;padding:28px 24px;margin-bottom:28px}
+.result-code{font-size:88px;font-weight:800;letter-spacing:-5px;line-height:1;margin-bottom:6px}
+.result-name-th{font-size:24px;font-weight:700;margin-bottom:4px}
+.result-name-en{font-size:13px;color:#999;letter-spacing:.05em;margin-bottom:20px}
+.result-rule{width:36px;height:3px;background:#000;margin-bottom:18px}
+.result-desc{font-size:15px;line-height:1.75;color:#333}
+.r-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#aaa;margin-top:24px;margin-bottom:10px}
+.tag-row{display:flex;flex-wrap:wrap;gap:8px}
+.tag{padding:6px 13px;border:1.5px solid #000;font-size:13px;font-weight:700;font-family:'Sarabun',sans-serif}
+.tag-filled{background:#000;color:#fff;border-color:#000}
+.tag-muted{border-color:#ccc;color:#aaa}
+.tag-plain{border-color:#000;color:#000}
+.caution-text{font-size:14px;line-height:1.7;color:#555}
+.copy-msg{text-align:center;font-size:13px;color:#999;min-height:22px;margin-top:8px}
+.cta-wrap{margin-top:36px}
+
+/* ── TYPES PAGE ───────────────────────────────────────────── */
+#page-types{
+  display:none;position:fixed;inset:0;background:#fff;
+  overflow-y:auto;z-index:100;-webkit-overflow-scrolling:touch;
+}
+#page-types.open{display:block}
+
+.tp-wrap{max-width:960px;margin:0 auto;padding:0 24px 80px}
+
+.tp-nav{
+  position:sticky;top:0;background:#fff;border-bottom:1px solid #e8e8e8;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;z-index:10;margin:0 -24px;gap:16px;
+}
+.tp-nav-left,.tp-nav-right{display:flex;align-items:center;gap:12px;min-width:80px}
+.tp-nav-right{justify-content:flex-end}
+.tp-nav-title{font-size:12px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+.tp-back{background:none;border:none;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;cursor:pointer;padding:6px 0;color:#000}
+.tp-back:hover{text-decoration:underline}
+.tp-start-btn{
+  padding:8px 14px;background:#000;color:#fff;border:none;
+  font-family:'Sarabun',sans-serif;font-size:13px;font-weight:700;cursor:pointer;
+  transition:opacity .2s;white-space:nowrap;
+}
+.tp-start-btn:hover{opacity:.8}
+
+.tp-hero{padding:40px 0 32px;border-bottom:1px solid #e8e8e8;margin-bottom:40px}
+.tp-hero-eyebrow{font-size:11px;letter-spacing:.2em;color:#999;text-transform:uppercase;margin-bottom:12px}
+.tp-hero-title{font-size:44px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:14px}
+.tp-hero-desc{font-size:15px;color:#555;line-height:1.7;max-width:580px}
+
+/* Legend */
+.tp-legend{display:flex;flex-wrap:wrap;border:1.5px solid #000;margin-bottom:48px}
+.tp-legend-col{flex:1;min-width:160px;padding:16px 18px;border-right:1.5px solid #000}
+.tp-legend-col:last-child{border-right:none}
+.tp-legend-head{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#aaa;margin-bottom:10px}
+.tp-legend-row{display:flex;align-items:baseline;gap:8px;margin-bottom:5px}
+.tp-legend-code{font-size:15px;font-weight:800;min-width:16px}
+.tp-legend-name{font-size:13px;color:#555}
+
+/* Group */
+.tp-group{margin-bottom:52px}
+.tp-group-hd{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+.tp-group-badge{
+  font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  border:1.5px solid #000;padding:5px 10px;white-space:nowrap;
+}
+.tp-group-info{display:flex;flex-direction:column;gap:1px}
+.tp-group-name{font-size:14px;font-weight:700}
+.tp-group-sub{font-size:12px;color:#aaa}
+.tp-group-rule{flex:1;height:1px;background:#e8e8e8}
+
+/* Grid */
+.tp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+
+/* Card */
+.tp-card{
+  border:1.5px solid #000;padding:18px 16px 16px;cursor:pointer;
+  transition:background .15s,color .15s;
+}
+.tp-card:hover{background:#000;color:#fff}
+.tp-card:hover .tp-card-code{color:#fff}
+.tp-card:hover .tp-card-name{color:#fff}
+.tp-card:hover .tp-card-en{color:#aaa}
+.tp-card:hover .tp-card-short{color:#bbb}
+.tp-card:hover .tp-card-rule{background:#444}
+.tp-card-code{font-size:26px;font-weight:800;letter-spacing:-1px;line-height:1;margin-bottom:8px;color:#000}
+.tp-card-name{font-size:13px;font-weight:700;margin-bottom:2px;line-height:1.3}
+.tp-card-en{font-size:11px;color:#999;margin-bottom:10px;letter-spacing:.02em}
+.tp-card-rule{width:18px;height:1.5px;background:#ccc;margin-bottom:9px}
+.tp-card-short{font-size:12px;color:#666;line-height:1.55;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+
+/* Modal */
+#type-modal{display:none;position:fixed;inset:0;z-index:200}
+#type-modal.open{display:block}
+.tm-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.tm-panel{
+  position:absolute;bottom:0;left:0;right:0;
+  max-height:92vh;background:#fff;overflow-y:auto;
+  padding:0 24px 56px;
+  transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);
+}
+#type-modal.open .tm-panel{transform:translateY(0)}
+
+@media(min-width:640px){
+  .tm-panel{
+    left:50%;right:auto;bottom:auto;top:50%;
+    width:540px;max-height:82vh;border:2px solid #000;
+    transform:translate(-50%,-50%) scale(.96);
+    transition:transform .25s ease,opacity .25s ease;
+    opacity:0;
+  }
+  #type-modal.open .tm-panel{transform:translate(-50%,-50%) scale(1);opacity:1}
+}
+
+.tm-nav{
+  position:sticky;top:0;background:#fff;
+  padding:14px 0 12px;display:flex;
+  justify-content:space-between;align-items:center;
+  border-bottom:1px solid #f0f0f0;margin-bottom:24px;
+  z-index:5;
+}
+.tm-close{
+  width:30px;height:30px;background:none;border:1.5px solid #000;
+  cursor:pointer;font-size:15px;display:flex;align-items:center;
+  justify-content:center;font-family:'Sarabun',sans-serif;flex-shrink:0;
+}
+.tm-close:hover{background:#000;color:#fff}
+.tm-nav-label{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#aaa}
+
+.tm-code{font-size:60px;font-weight:800;letter-spacing:-3px;line-height:1;margin-bottom:6px}
+.tm-name{font-size:20px;font-weight:700;margin-bottom:3px}
+.tm-en{font-size:13px;color:#999;margin-bottom:20px}
+.tm-rule{width:32px;height:3px;background:#000;margin-bottom:16px}
+.tm-desc{font-size:15px;line-height:1.75;color:#333}
+.tm-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#aaa;margin-top:24px;margin-bottom:10px}
+.tm-tags{display:flex;flex-wrap:wrap;gap:8px}
+.tm-str-tag{padding:6px 13px;border:1.5px solid #000;font-size:13px;font-weight:700;font-family:'Sarabun',sans-serif}
+.tm-cau{font-size:14px;line-height:1.7;color:#555}
+.tm-match-btn{
+  padding:6px 13px;font-size:13px;font-weight:700;
+  font-family:'Sarabun',sans-serif;cursor:pointer;border:1.5px solid;
+  background:none;transition:all .15s;
+}
+.tm-match-good{background:#000;color:#fff;border-color:#000}
+.tm-match-good:hover{background:#333}
+.tm-match-warn{border-color:#ccc;color:#bbb}
+.tm-match-warn:hover{border-color:#999;color:#888}
+
+/* ── COMPAT PAGE ─────────────────────────────────────────── */
+#page-compat{
+  display:none;position:fixed;inset:0;background:#fff;
+  overflow-y:auto;z-index:100;-webkit-overflow-scrolling:touch;
+}
+#page-compat.open{display:block}
+
+.tp-nav-tabs{display:flex;gap:0;border:1.5px solid #000;overflow:hidden}
+.tp-tab{
+  padding:7px 16px;background:#fff;color:#000;border:none;
+  font-family:'Sarabun',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;letter-spacing:.05em;transition:all .15s;white-space:nowrap;
+}
+.tp-tab+.tp-tab{border-left:1.5px solid #000}
+.tp-tab-active{background:#000;color:#fff}
+.tp-tab:not(.tp-tab-active):hover{background:#f0f0f0}
+
+.cp-wrap{max-width:960px;margin:0 auto;padding:0 0 80px}
+.cp-hero{padding:40px 24px 32px;border-bottom:1px solid #e8e8e8;margin-bottom:24px}
+.cp-hero-eyebrow{font-size:11px;letter-spacing:.2em;color:#999;text-transform:uppercase;margin-bottom:12px}
+.cp-hero-title{font-size:44px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:14px}
+.cp-hero-desc{font-size:15px;color:#555;line-height:1.7;max-width:580px}
+
+.cp-legend{display:flex;flex-wrap:wrap;gap:16px;padding:0 24px 20px;align-items:center}
+.cp-legend-item{display:flex;align-items:center;gap:8px;font-size:13px;color:#555}
+.cp-legend-dot{width:16px;height:16px;flex-shrink:0}
+.cp-legend-good{background:#27ae60}
+.cp-legend-neutral{background:#f1c40f}
+.cp-legend-warn{background:#c0392b}
+
+.cp-scroll{overflow:auto;-webkit-overflow-scrolling:touch;height:calc(100vh - 220px);padding:0 0 16px 24px}
+.cp-table{border-collapse:collapse;table-layout:fixed;font-size:11px}
+.cp-table th,.cp-table td{padding:0}
+.ct-corner{width:52px;min-width:52px;height:52px;background:#fff;position:sticky;left:0;top:0;z-index:4}
+.ct-col-hd{
+  position:sticky;top:0;background:#fff;z-index:3;
+  width:26px;min-width:26px;height:52px;
+  text-align:center;cursor:pointer;
+  font-size:9px;font-weight:800;letter-spacing:.04em;color:#666;
+  border-bottom:1px solid #e8e8e8;
+  writing-mode:vertical-rl;transform:rotate(180deg);
+  vertical-align:bottom;padding-bottom:3px;
+}
+.ct-col-hd.hl{color:#000;background:#f0f0f0}
+.ct-row-hd{
+  position:sticky;left:0;background:#fff;z-index:2;
+  font-size:10px;font-weight:800;color:#666;letter-spacing:.03em;
+  padding:0 6px 0 0;cursor:pointer;white-space:nowrap;
+  border-right:1px solid #e8e8e8;width:52px;min-width:52px;
+  text-align:right;
+}
+.ct-row-hd.hl{color:#000;background:#f0f0f0}
+.ct-cell{
+  width:26px;min-width:26px;height:26px;cursor:pointer;
+  transition:opacity .1s;
+}
+.ct-cell:hover{opacity:.7}
+.ct-good{background:#27ae60}
+.ct-neutral{background:#f1c40f}
+.ct-warn{background:#c0392b}
+.ct-self-good{background:#27ae60}
+.ct-self-neutral{background:#f1c40f}
+.ct-self-warn{background:#c0392b}
+.ct-cell.hl{box-shadow:inset 0 0 0 2px #000}
+
+/* ── COMPAT COMPARISON MODAL ─────────────────────────────── */
+#compat-modal{display:none;position:fixed;inset:0;z-index:300}
+#compat-modal.open{display:block}
+.cm-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.cm-panel{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:min(780px,94vw);max-height:86vh;
+  background:#fff;border:2px solid #000;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+}
+.cm-header{
+  position:sticky;top:0;background:#fff;z-index:2;
+  padding:14px 18px;border-bottom:2px solid #000;
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+}
+.cm-header-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.cm-badge{
+  padding:4px 10px;font-size:11px;font-weight:800;
+  letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;flex-shrink:0;
+}
+.cm-badge-good{background:#27ae60;color:#fff}
+.cm-badge-neutral{background:#f1c40f;color:#000}
+.cm-badge-warn{background:#c0392b;color:#fff}
+.cm-reason{font-size:13px;color:#555;line-height:1.4}
+.cm-close{
+  width:30px;height:30px;flex-shrink:0;background:none;border:1.5px solid #000;
+  cursor:pointer;font-size:15px;display:flex;align-items:center;
+  justify-content:center;font-family:'Sarabun',sans-serif;
+}
+.cm-close:hover{background:#000;color:#fff}
+.cm-body{display:grid;grid-template-columns:1fr 1fr}
+.cm-col{padding:20px 20px 28px}
+.cm-col:first-child{border-right:1px solid #e8e8e8}
+.cm-col-code{font-size:42px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}
+.cm-col-name{font-size:15px;font-weight:700;margin-bottom:2px}
+.cm-col-en{font-size:12px;color:#999;margin-bottom:12px;letter-spacing:.02em}
+.cm-col-rule{width:24px;height:2.5px;background:#000;margin-bottom:12px}
+.cm-col-desc{font-size:14px;line-height:1.7;color:#333}
+.cm-col-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#aaa;margin-top:18px;margin-bottom:8px}
+.cm-str-tag{display:inline-block;padding:4px 10px;border:1.5px solid #000;font-size:12px;font-weight:700;margin:0 4px 4px 0}
+.cm-cau{font-size:13px;line-height:1.65;color:#555}
+@media(max-width:560px){
+  .cm-body{grid-template-columns:1fr}
+  .cm-col:first-child{border-right:none;border-bottom:1px solid #e8e8e8}
+}
+
+#cp-tooltip{
+  position:fixed;background:#000;color:#fff;
+  font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;
+  padding:9px 13px;max-width:260px;line-height:1.55;
+  pointer-events:none;z-index:500;display:none;
+}
+#cp-infobar{
+  display:none;position:fixed;bottom:0;left:0;right:0;
+  background:#111;color:#fff;padding:16px 20px 20px;
+  font-family:'Sarabun',sans-serif;font-size:14px;line-height:1.55;
+  z-index:300;border-top:2px solid #000;
+}
+#cp-infobar-close{
+  float:right;background:none;border:1.5px solid rgba(255,255,255,.5);color:#fff;
+  font-family:'Sarabun',sans-serif;font-size:13px;padding:3px 9px;cursor:pointer;margin-left:8px;
+}
+
+/* ── RESPONSIVE ───────────────────────────────────────────── */
+@media(max-width:600px){
+  .tp-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .tp-card-code{font-size:22px}
+  .tp-legend-col{min-width:140px}
+  .tp-hero-title{font-size:34px}
+}
+@media(max-width:400px){
+  .tp-legend{flex-direction:column}
+  .tp-legend-col{border-right:none;border-bottom:1.5px solid #000}
+  .tp-legend-col:last-child{border-bottom:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ░░ QUIZ: INTRO ░░ -->
+<div id="scr-intro" class="screen">
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+    <div class="intro-eyebrow">Relationship Compatibility Engine</div>
+    <div class="intro-title">RCE</div>
+    <div class="intro-rule"></div>
+    <div class="intro-desc">
+      RCE วัดบุคลิกภาพในความสัมพันธ์ของคุณใน <strong>3 มิติ</strong> —
+      รูปแบบการผูกพัน, วิธีรับมือความขัดแย้ง และความต้องการความใกล้ชิด
+      <br><br>
+      ตอบคำถาม 30 ข้อ เพื่อค้นหา Type ในรูปแบบรหัส 3 ตัวอักษร เช่น <strong>SCB</strong> หรือ <strong>VWI</strong>
+    </div>
+    <div class="intro-meta">
+      <span>30 คำถาม</span><span>~5–7 นาที</span><span>ไม่มีคำตอบที่ผิด</span>
+    </div>
+    <button class="btn-primary" onclick="startQuiz()">เริ่มทำแบบทดสอบ →</button>
+    <button class="btn-ghost" onclick="goTypes()">ดู RCE Types ทั้งหมด →</button>
+  </div>
+</div>
+
+<!-- ░░ QUIZ: SECTION ANNOUNCE ░░ -->
+<div id="scr-section" class="screen">
+  <div class="sa-wrap">
+    <div class="sa-part" id="sa-part"></div>
+    <div class="sa-title" id="sa-title"></div>
+    <div class="sa-desc" id="sa-desc"></div>
+    <button class="btn-primary" onclick="continueSection()">ต่อไป →</button>
+  </div>
+</div>
+
+<!-- ░░ QUIZ: QUESTION ░░ -->
+<div id="scr-question" class="screen">
+  <div class="prog-row">
+    <div class="prog-bar-bg"><div class="prog-bar-fill" id="prog-fill"></div></div>
+    <div class="prog-num" id="prog-num"></div>
+  </div>
+  <div class="q-section-tag" id="q-tag"></div>
+  <div class="q-text" id="q-text"></div>
+  <div class="q-scenario" id="q-scenario"></div>
+  <div class="choices">
+    <button class="choice" onclick="answer('A')"><span class="choice-lbl">A</span><span id="txt-a"></span></button>
+    <button class="choice" onclick="answer('B')"><span class="choice-lbl">B</span><span id="txt-b"></span></button>
+  </div>
+</div>
+
+<!-- ░░ QUIZ: RESULT ░░ -->
+<div id="scr-result" class="screen">
+  <div id="result-body"></div>
+</div>
+
+<!-- ░░ TYPES PAGE ░░ -->
+<div id="page-types">
+  <div class="tp-nav">
+    <div class="tp-nav-left">
+      <button class="tp-back" onclick="backFromTypes()">← กลับ</button>
+    </div>
+    <div class="tp-nav-tabs">
+      <button class="tp-tab tp-tab-active">Types</button>
+      <button class="tp-tab" onclick="goCompat()">ความเข้ากันได้</button>
+    </div>
+    <div class="tp-nav-right">
+      <button class="tp-start-btn" onclick="backFromTypes();startQuiz()">ทำแบบทดสอบ →</button>
+    </div>
+  </div>
+  <div class="tp-wrap">
+    <div class="tp-hero">
+      <div class="tp-hero-eyebrow">Relationship Compatibility Engine</div>
+      <div class="tp-hero-title">27 Types</div>
+      <div class="tp-hero-desc">
+        แต่ละ Type คือรหัส 3 ตัวอักษรที่ประกอบจาก 3 มิติ — รูปแบบการผูกพัน (ตัวที่ 1), วิธีรับมือความขัดแย้ง (ตัวที่ 2) และความต้องการความใกล้ชิด (ตัวที่ 3) กดที่ Type ใดก็ได้เพื่อดูรายละเอียด
+      </div>
+    </div>
+
+    <div class="tp-legend">
+      <div class="tp-legend-col">
+        <div class="tp-legend-head">ตัวที่ 1 — Attachment</div>
+        <div class="tp-legend-row"><span class="tp-legend-code">S</span><span class="tp-legend-name">Secure · มั่นคง</span></div>
+        <div class="tp-legend-row"><span class="tp-legend-code">A</span><span class="tp-legend-name">Anxious · วิตกกังวล</span></div>
+        <div class="tp-legend-row"><span class="tp-legend-code">V</span><span class="tp-legend-name">Avoidant · หลีกเลี่ยง</span></div>
+      </div>
+      <div class="tp-legend-col">
+        <div class="tp-legend-head">ตัวที่ 2 — Conflict</div>
+        <div class="tp-legend-row"><span class="tp-legend-code">C</span><span class="tp-legend-name">Confronting · เผชิญตรงๆ</span></div>
+        <div class="tp-legend-row"><span class="tp-legend-code">P</span><span class="tp-legend-name">Processing · ใคร่ครวญ</span></div>
+        <div class="tp-legend-row"><span class="tp-legend-code">W</span><span class="tp-legend-name">Withdrawing · ถอยออก</span></div>
+      </div>
+      <div class="tp-legend-col">
+        <div class="tp-legend-head">ตัวที่ 3 — Closeness</div>
+        <div class="tp-legend-row"><span class="tp-legend-code">M</span><span class="tp-legend-name">Merger · ต้องการรวมกัน</span></div>
+        <div class="tp-legend-row"><span class="tp-legend-code">B</span><span class="tp-legend-name">Balanced · สมดุล</span></div>
+        <div class="tp-legend-row"><span class="tp-legend-code">I</span><span class="tp-legend-name">Independent · อิสระ</span></div>
+      </div>
+    </div>
+
+    <div id="tp-groups"></div>
+  </div>
+</div>
+
+<!-- ░░ COMPAT PAGE ░░ -->
+<div id="page-compat">
+  <div class="tp-nav">
+    <div class="tp-nav-left">
+      <button class="tp-back" onclick="backFromCompat()">← กลับ</button>
+    </div>
+    <div class="tp-nav-tabs">
+      <button class="tp-tab" onclick="goTypes()">Types</button>
+      <button class="tp-tab tp-tab-active">ความเข้ากันได้</button>
+    </div>
+    <div class="tp-nav-right">
+      <button class="tp-start-btn" onclick="backFromCompat();startQuiz()">ทำแบบทดสอบ →</button>
+    </div>
+  </div>
+  <div class="cp-wrap">
+    <div class="cp-hero">
+      <div class="cp-hero-eyebrow">Relationship Compatibility Engine</div>
+      <div class="cp-hero-title">ตารางความเข้ากันได้</div>
+      <div class="cp-hero-desc">คลิกที่ช่องใดก็ได้เพื่อดูความเข้ากันของ Type ทั้งสอง — คลิกหัวแถวหรือหัวคอลัมน์เพื่อไฮไลท์ประเภทนั้น</div>
+    </div>
+    <div class="cp-legend">
+      <div class="cp-legend-item"><div class="cp-legend-dot cp-legend-good"></div>เข้ากันได้ดี</div>
+      <div class="cp-legend-item"><div class="cp-legend-dot cp-legend-neutral"></div>ปานกลาง</div>
+      <div class="cp-legend-item"><div class="cp-legend-dot cp-legend-warn"></div>ต้องระวัง</div>
+    </div>
+    <div class="cp-scroll">
+      <div id="cp-table-container"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ░░ TYPE DETAIL MODAL ░░ -->
+<div id="type-modal">
+  <div class="tm-backdrop" onclick="closeModal()"></div>
+  <div class="tm-panel" id="tm-panel">
+    <div class="tm-nav">
+      <span class="tm-nav-label">RCE Type</span>
+      <button class="tm-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="tm-body"></div>
+  </div>
+</div>
+
+<div id="compat-modal">
+  <div class="cm-backdrop" onclick="closeCompatModal()"></div>
+  <div class="cm-panel">
+    <div class="cm-header">
+      <div class="cm-header-left">
+        <span class="cm-badge" id="cm-badge"></span>
+        <span class="cm-reason" id="cm-reason"></span>
+      </div>
+      <button class="cm-close" onclick="closeCompatModal()">✕</button>
+    </div>
+    <div class="cm-body" id="cm-body"></div>
+  </div>
+</div>
+
+<div id="cp-tooltip"></div>
+<div id="cp-infobar">
+  <button id="cp-infobar-close" onclick="document.getElementById('cp-infobar').style.display='none'">✕</button>
+  <span id="cp-infobar-text"></span>
+</div>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwC1li1-VahrnPQVXcTk1EBlSy342OY_8bgswsN1yiWggIuM7CkLWSH5SrEstXx0s9d3g/exec';
+
+// ─── SECTIONS ────────────────────────────────────────────────
+const SECTIONS = [
+  { id:'attachment', part:'PART 1 / 3', title:'รูปแบบการผูกพัน', en:'Attachment Style',
+    desc:'ส่วนนี้สำรวจว่าคุณรู้สึกอย่างไรกับการมีคนสนิทในชีวิต และตอบสนองต่อความมั่นคงในความสัมพันธ์อย่างไร' },
+  { id:'conflict', part:'PART 2 / 3', title:'วิธีรับมือความขัดแย้ง', en:'Conflict Response',
+    desc:'ส่วนนี้สำรวจว่าคุณจัดการกับความตึงเครียดและความขัดแย้งในความสัมพันธ์อย่างไร' },
+  { id:'closeness', part:'PART 3 / 3', title:'ความต้องการความใกล้ชิด', en:'Closeness Need',
+    desc:'ส่วนนี้สำรวจว่าคุณต้องการความใกล้ชิดและพื้นที่ส่วนตัวในความสัมพันธ์มากแค่ไหน' }
+];
+
+// ─── QUESTIONS ───────────────────────────────────────────────
+const Q = [
+  // ── Attachment (0–11) ──
+  { q:'แฟนไม่ตอบข้อความนานกว่าปกติ',
+    s:'คุณส่งข้อความหาแฟน แต่ผ่านไป 3 ชั่วโมงแล้วยังไม่มีการตอบกลับ ทั้งที่ปกติเขาตอบเร็วมาก',
+    a:'รอได้สบาย คิดว่าเขาคงยุ่งหรืองีบหลับอยู่',
+    b:'เริ่มกังวลเล็กน้อย อยากส่งข้อความติดตามอีกครั้ง',
+    sA:['S',2,'V',1], sB:['A',2,'S',1] },
+  { q:'แฟนขอเวลาคืนคนเดียว',
+    s:'หลังจากใช้เวลาด้วยกันทั้งวัน แฟนบอกว่าอยากอยู่คนเดียวคืนนี้เพื่อชาร์จพลัง',
+    a:'โอเคเลย รู้สึกโล่งด้วยซ้ำ เพราะตัวเองก็ต้องการพื้นที่บ้าง',
+    b:'รู้สึกน้อยใจนิดๆ คิดว่าเขาไม่อยากอยู่กับเรา',
+    sA:['V',2,'S',1], sB:['A',2,'V',1] },
+  { q:'ความสัมพันธ์ดูราบรื่นมากเกินไป',
+    s:'ช่วงนี้ทุกอย่างดูดีมาก ไม่มีทะเลาะ ไม่มีปัญหา ทุกอย่างสงบนิ่ง',
+    a:'กังวลเล็กน้อยว่ามีอะไรซ่อนอยู่ กลัวว่าความเงียบอาจหมายถึงเขากำลังห่างเรา',
+    b:'รู้สึกดีมาก นี่คือสิ่งที่ต้องการในความสัมพันธ์',
+    sA:['A',2,'S',1], sB:['S',2,'V',1] },
+  { q:'เริ่มชอบใครสักคน',
+    s:'คุณกำลังคบหากับคนที่น่าสนใจ แต่ยังไม่ได้คุยเรื่องสถานะอย่างจริงจัง',
+    a:'ชอบให้มันเป็นไปตามธรรมชาติ ไม่รีบนิยามความสัมพันธ์',
+    b:'อยากรู้ว่าเขารู้สึกอย่างไร และอยากกำหนดสถานะให้ชัดเจน',
+    sA:['V',2,'S',1], sB:['A',2,'S',1] },
+  { q:'แฟนวิจารณ์บางอย่างในตัวคุณ',
+    s:'แฟนบอกว่าคุณ "ไม่ค่อยแสดงความรู้สึก" และอยากให้คุณเปิดใจมากกว่านี้',
+    a:'รับฟังและพยายามสื่อสารมากขึ้น แม้ต้องใช้เวลาปรับตัว',
+    b:'รู้สึกเจ็บปวดมาก และตั้งคำถามว่าตัวเองพอหรือเปล่า',
+    sA:['S',2,'A',1], sB:['A',2,'V',1] },
+  { q:'ช่วงเครียดจากงาน',
+    s:'คุณกำลังผ่านช่วงเครียดหนักจากงาน และคิดถึงแฟน',
+    a:'อยากอยู่คนเดียวและจัดการกับความเครียดด้วยตัวเองก่อน',
+    b:'อยากให้แฟนอยู่ด้วย รู้สึกดีขึ้นเมื่อเขาอยู่ข้างๆ',
+    sA:['V',2,'S',1], sB:['S',2,'A',1] },
+  { q:'นึกถึงความสัมพันธ์ในอดีต',
+    s:'คุณนึกย้อนถึงความสัมพันธ์ที่ผ่านมา',
+    a:'รู้สึกเจ็บปวดกับเรื่องเก่าๆ และกลัวว่าจะเกิดซ้ำอีก',
+    b:'เรียนรู้จากอดีต แต่ไม่ได้กังวลว่ามันจะเกิดซ้ำ',
+    sA:['A',2,'V',1], sB:['S',2,'A',1] },
+  { q:'การแสดงความรักในที่สาธารณะ',
+    s:'คุณและแฟนอยู่ในที่สาธารณะ แฟนอยากจับมือและแสดงความรัก',
+    a:'ยินดีและสนุกกับมัน รู้สึกอบอุ่นใจ',
+    b:'รู้สึกเขินเล็กน้อย ชอบแสดงความรักในพื้นที่ส่วนตัวมากกว่า',
+    sA:['S',2,'V',1], sB:['V',2,'A',1] },
+  { q:'แฟนลืมนัดสำคัญ',
+    s:'แฟนลืมนัดสำคัญที่คุณรอคอยมานาน',
+    a:'เก็บกดความรู้สึก บอกว่าไม่เป็นไร แต่ใจยังไม่โอเค',
+    b:'บอกว่าเสียใจ รับฟังคำอธิบาย แล้วเดินหน้าต่อได้',
+    sA:['V',2,'A',1], sB:['S',2,'A',1] },
+  { q:'ทำสิ่งดีๆ ให้แฟนแต่ไม่ได้รับคำขอบคุณ',
+    s:'คุณทำสิ่งดีๆ ให้แฟน แต่เขาไม่ได้พูดขอบคุณหรือชมเลย',
+    a:'รู้สึกผิดหวังมาก อยากให้เขาบอกว่าเห็นคุณค่า',
+    b:'โอเค รู้ว่าคนมีวิธีแสดงความขอบคุณต่างกัน',
+    sA:['A',2,'S',1], sB:['V',2,'S',1] },
+  { q:'จินตนาการถึงอนาคตในความสัมพันธ์',
+    s:'คุณจินตนาการถึงอนาคตของความสัมพันธ์นี้',
+    a:'รู้สึกตื่นเต้นและมีความสุข พร้อมสำหรับอนาคตระยะยาว',
+    b:'รู้สึกดี แต่มีความกังวลเล็กน้อยว่าจะยั่งยืนไหม',
+    sA:['S',2,'A',1], sB:['V',2,'A',1] },
+  { q:'แฟนดูเงียบและไม่สบายใจ',
+    s:'คุณสังเกตว่าแฟนดูเงียบ แต่บอกว่า "ไม่เป็นไร"',
+    a:'เข้าไปถามซ้ำและพยายามให้เขาพูดออกมา กังวลมากถ้าเขาไม่เปิดใจ',
+    b:'ให้พื้นที่เขา รู้ว่าถ้าอยากพูดก็จะมาหาเราเอง',
+    sA:['A',2,'V',1], sB:['S',2,'V',1] },
+  // ── Conflict (12–21) ──
+  { q:'มีเรื่องที่ทำให้ไม่พอใจแฟนมาหลายครั้งแล้ว',
+    s:'แฟนทำบางอย่างที่ทำให้คุณรำคาญมาหลายครั้ง แต่ยังไม่ได้พูดถึง',
+    a:'พูดตรงๆ ว่ารู้สึกอย่างไร แม้อาจทำให้บรรยากาศอึดอัด',
+    b:'เก็บไว้ก่อน รอให้อารมณ์เย็นแล้วค่อยคิดว่าจะพูดดีไหม',
+    sA:['C',2,'P',1], sB:['W',2,'P',1] },
+  { q:'กำลังโต้เถียงกันอยู่',
+    s:'คุณและแฟนกำลังโต้เถียงกันเรื่องสำคัญ อารมณ์เริ่มร้อน',
+    a:'หยุดก่อนและบอกว่าต้องการเวลานอกเพื่อสงบสติ',
+    b:'พยายามรับฟังให้ครบทุกมุมก่อนตอบสนอง',
+    sA:['W',2,'C',1], sB:['P',2,'C',1] },
+  { q:'รู้สึกว่าถูกปฏิบัติอย่างไม่ยุติธรรม',
+    s:'แฟนพูดบางอย่างที่คุณรู้สึกว่าไม่ยุติธรรม แต่เขาดูไม่รู้สึกตัว',
+    a:'บอกทันทีว่าไม่โอเคกับสิ่งที่พูด',
+    b:'ค่อยๆ ทำความเข้าใจว่าทำไมเขาถึงพูดแบบนั้น',
+    sA:['C',2,'W',1], sB:['P',2,'W',1] },
+  { q:'ความขัดแย้งเรื่องค่านิยม',
+    s:'คุณและแฟนมีความเห็นต่างกันในเรื่องสำคัญ เช่น แนวคิดเรื่องเงินหรืออนาคต',
+    a:'เลือกที่จะไม่พูดถึงเพื่อรักษาบรรยากาศ',
+    b:'เข้าหาและขอคุยเรื่องนี้อย่างจริงจัง',
+    sA:['W',2,'P',1], sB:['C',2,'P',1] },
+  { q:'หลังทะเลาะกันจบแต่ยังไม่ดีขึ้น',
+    s:'คุณและแฟนเพิ่งทะเลาะกันจบ แต่อารมณ์ยังค้างอยู่',
+    a:'ต้องการพื้นที่คนเดียวก่อนที่จะกลับมาคุยต่อ',
+    b:'อยากพูดคุยและทำความเข้าใจว่าเกิดอะไรขึ้น',
+    sA:['P',2,'W',1], sB:['C',2,'W',1] },
+  { q:'แฟนพูดในสิ่งที่ทำให้เจ็บปวดระหว่างทะเลาะ',
+    s:'ระหว่างการทะเลาะ แฟนพูดบางอย่างที่ทำให้คุณเจ็บปวดจริงๆ',
+    a:'บอกตรงๆ ว่าสิ่งที่พูดทำร้ายคุณ และต้องการคำขอโทษ',
+    b:'หยุดพูดและออกจากสถานการณ์ก่อน',
+    sA:['C',2,'P',1], sB:['W',2,'C',1] },
+  { q:'แฟนหยิบเรื่องเก่าขึ้นมาระหว่างทะเลาะ',
+    s:'ระหว่างที่ทะเลาะกัน แฟนนำเรื่องที่เคยคุยกันแล้วขึ้นมาอีก',
+    a:'บอกว่าไม่โอเคกับการนำเรื่องเก่ามาพูด ขอให้โฟกัสที่ปัจจุบัน',
+    b:'พยายามอดทนและฟัง แต่รู้สึกเหนื่อยและอยากออกจากบทสนทนา',
+    sA:['C',2,'W',1], sB:['W',2,'P',1] },
+  { q:'ต้องพูดเรื่องยากๆ กับแฟน',
+    s:'มีเรื่องสำคัญที่ต้องพูดคุยกับแฟน แต่รู้ว่าอาจทำให้เขาไม่สบายใจ',
+    a:'หาเวลาที่เหมาะสมและพูดตรงๆ แม้จะยาก',
+    b:'รอให้สถานการณ์เหมาะสมและค่อยๆ นำเข้าเรื่อง',
+    sA:['P',2,'C',1], sB:['C',2,'W',1] },
+  { q:'รู้ว่าตัวเองเป็นฝ่ายผิด',
+    s:'คุณรู้ในใจว่าคุณเป็นคนผิดในการทะเลาะครั้งนี้',
+    a:'ขอโทษทันทีและพยายามแก้ไขสถานการณ์',
+    b:'ต้องการเวลาคนเดียวก่อนที่จะกลับไปขอโทษ',
+    sA:['C',2,'W',1], sB:['W',2,'P',1] },
+  { q:'ความขัดแย้งที่ดูไม่มีทางออก',
+    s:'คุณและแฟนคุยกันนานมาก แต่ดูเหมือนยังไม่ได้ข้อสรุป',
+    a:'หยุดพักก่อน แล้วค่อยกลับมาคุยใหม่เมื่อสงบ',
+    b:'พยายามหาจุดร่วมให้ได้ก่อนจะจบบทสนทนา',
+    sA:['W',2,'C',1], sB:['P',2,'W',1] },
+  // ── Closeness (22–29) ──
+  { q:'ความถี่ในการพบกัน',
+    s:'คุณกำลังคิดว่าอยากเจอแฟนบ่อยแค่ไหนในแต่ละสัปดาห์',
+    a:'อยากเจอกันทุกวันหรือเกือบทุกวัน รู้สึกดีที่ได้อยู่ด้วยกัน',
+    b:'อยากมีเวลาส่วนตัวบ้าง พบกัน 2–3 ครั้งต่อสัปดาห์ก็พอ',
+    sA:['M',2,'B',1], sB:['I',2,'B',1] },
+  { q:'การแชร์ชีวิตประจำวัน',
+    s:'คุณคิดว่าควรแชร์รายละเอียดชีวิตประจำวันกับแฟนมากแค่ไหน',
+    a:'อยากรู้ทุกอย่างเกี่ยวกับแฟน และอยากให้เขารู้ทุกอย่างเกี่ยวกับเราด้วย',
+    b:'แชร์สิ่งสำคัญ แต่บางเรื่องก็เป็นพื้นที่ส่วนตัวของแต่ละคน',
+    sA:['M',2,'I',1], sB:['B',2,'M',1] },
+  { q:'แฟนมีแผนกับเพื่อนโดยไม่ชวน',
+    s:'แฟนมีแผนออกไปกับเพื่อนทั้งคืน โดยไม่ได้ชวนคุณ',
+    a:'โอเคเลย คุณก็มีเวลาทำอะไรเองได้',
+    b:'รู้สึกอยากให้เขาชวนไปด้วย หรืออยากให้บอกล่วงหน้า',
+    sA:['I',2,'B',1], sB:['M',2,'B',1] },
+  { q:'พื้นที่ส่วนตัวในความสัมพันธ์',
+    s:'คุณนึกถึงสิ่งที่ต้องการในความสัมพันธ์ที่ดี',
+    a:'ต้องการเวลาและพื้นที่ส่วนตัวเป็นสิ่งสำคัญมาก',
+    b:'ต้องการความสมดุลระหว่างเวลาส่วนตัวและเวลาด้วยกัน',
+    sA:['I',2,'B',1], sB:['B',2,'I',1] },
+  { q:'วางแผนอนาคตร่วมกัน',
+    s:'คุณคิดถึงการวางแผนอนาคตกับแฟน',
+    a:'อยากให้ชีวิตของเราสองคนรวมกัน เช่น อยู่ด้วยกัน มีเป้าหมายเดียวกัน',
+    b:'อยากมีชีวิตของตัวเองด้วย แม้จะมีแฟนอยู่ด้วย',
+    sA:['M',2,'B',1], sB:['I',2,'M',1] },
+  { q:'ต้องอยู่ห่างกัน 2 สัปดาห์',
+    s:'คุณและแฟนต้องอยู่ห่างกัน 2 สัปดาห์เพราะการเดินทาง',
+    a:'รู้สึกคิดถึงมาก อยากติดต่อกันตลอดเวลา',
+    b:'คิดถึง แต่ก็โอเค ใช้เวลานี้โฟกัสที่ตัวเองได้',
+    sA:['M',2,'I',1], sB:['B',2,'M',1] },
+  { q:'งานอดิเรกที่แฟนไม่ชอบ',
+    s:'คุณมีงานอดิเรกที่ชอบมาก แต่แฟนไม่สนใจกิจกรรมนั้น',
+    a:'ยังคงทำกิจกรรมนั้นเองโดยไม่รู้สึกผิด เรื่องปกติที่ความสนใจต่างกัน',
+    b:'อยากหาอะไรที่ทำด้วยกันได้ แม้ต้องลดกิจกรรมส่วนตัวลงบ้าง',
+    sA:['I',2,'B',1], sB:['B',2,'M',1] },
+  { q:'เพื่อนบอกว่าคุณ "หายไป" นับตั้งแต่มีแฟน',
+    s:'เพื่อนสนิทบอกว่านับตั้งแต่มีแฟน คุณดูหายหน้าไปจากกลุ่ม',
+    a:'รู้สึกดีกับมัน เพราะอยากใช้เวลากับแฟนมากกว่าสิ่งอื่น',
+    b:'รู้สึกต้องหาสมดุล ไม่อยากให้ความสัมพันธ์กลืนกินชีวิตส่วนอื่น',
+    sA:['M',2,'I',1], sB:['B',2,'I',1] }
+];
+
+// ─── TYPES ───────────────────────────────────────────────────
+const TYPES = {
+  SCM:{ name:'ผู้พิทักษ์ที่มั่นคง', en:'The Devoted Guardian',
+    desc:'คุณมีความมั่นคงทางอารมณ์ กล้าเผชิญปัญหาตรงๆ และต้องการความใกล้ชิดสูง คุณเป็นคนที่แฟนรู้สึกปลอดภัยและได้รับการดูแลอย่างแน่นแฟ้น แต่ต้องระวังไม่ให้ความต้องการความใกล้ชิดกลายเป็นแรงกดดัน',
+    str:['มั่นคงและไว้วางใจได้','กล้าพูดเรื่องยาก','ดูแลคนที่รักอย่างลึกซึ้ง'],
+    cau:['ความต้องการความใกล้ชิดสูงอาจทำให้แฟนรู้สึกหายใจไม่ออก','ต้องเรียนรู้ให้พื้นที่โดยไม่รู้สึกถูกทอดทิ้ง'],
+    good:['SWB','SPM','APB'], warn:['VWI','VCI','VPI'] },
+  SCB:{ name:'นักเจรจาที่ใจเย็น', en:'The Calm Negotiator',
+    desc:'คุณผสมผสานความมั่นคงทางอารมณ์กับความสามารถในการพูดคุยอย่างตรงไปตรงมาและสมดุล คุณหาทางออกได้เสมอโดยไม่ทำให้ความสัมพันธ์เสียหาย ความสมดุลของคุณทำให้หลายคนอยากเป็นคู่ของคุณ',
+    str:['สื่อสารได้ดีเยี่ยม','หาทางออกโดยไม่ใช้อารมณ์','สมดุลในความสัมพันธ์'],
+    cau:['อาจดูเย็นชาเกินไปในบางครั้ง','ควรแสดงอารมณ์ความรู้สึกให้ชัดขึ้นบ้าง'],
+    good:['SPB','VPB','APB'], warn:['AWM','AWI','VWM'] },
+  SCI:{ name:'ผู้เป็นอิสระที่มั่นคง', en:'The Secure Individualist',
+    desc:'คุณมีความมั่นคงในตัวเองสูง กล้าพูดตรงๆ และต้องการพื้นที่ส่วนตัวในความสัมพันธ์ คุณเชื่อว่าความรักที่ดีต้องให้อิสระแก่กัน และมักเป็นแบบอย่างของความสัมพันธ์ที่สุขภาพดี',
+    str:['ไม่พึ่งพาคนอื่นมากเกินไป','กล้าสื่อสารขอบเขต','มีชีวิตของตัวเองที่สมบูรณ์'],
+    cau:['อาจดูห่างเหินสำหรับคนที่ต้องการความใกล้ชิดสูง','ต้องการแฟนที่เข้าใจและให้คุณค่ากับอิสรภาพ'],
+    good:['VCI','VPI','SPI'], warn:['ACM','AWM','APM'] },
+  SPM:{ name:'ผู้ดูแลที่อบอุ่น', en:'The Steady One',
+    desc:'คุณมั่นคง ใจเย็น และใส่ใจความสัมพันธ์อย่างลึกซึ้ง คุณไม่รีบเผชิญปัญหา แต่เมื่อถึงเวลาก็พร้อมพูดคุยและทำความเข้าใจ ความต้องการความใกล้ชิดของคุณสูงแต่แฝงด้วยความอ่อนโยน',
+    str:['อดทนและใจเย็น','ดูแลคนรักอย่างสม่ำเสมอ','สร้างพื้นที่ปลอดภัยทางอารมณ์'],
+    cau:['อาจเก็บความรู้สึกบางส่วนไว้นานเกินไป','ต้องระวังไม่ให้ความต้องการความใกล้ชิดกลายเป็นภาระ'],
+    good:['SWB','APB','SCB'], warn:['VWI','VCI','SCI'] },
+  SPB:{ name:'นักสมดุล', en:'The Harmonious Partner',
+    desc:'คุณเป็น Type ที่หลายคนใฝ่ฝันหา มีความมั่นคง รับมือความขัดแย้งได้อย่างสุขุม และต้องการความสมดุลในความสัมพันธ์ คุณไม่ได้สมบูรณ์แบบ แต่เติบโตได้กับเกือบทุก Type',
+    str:['เข้ากันได้กับหลาย Type','สมดุลในทุกด้าน','เป็นจุดยึดเหนี่ยวในความสัมพันธ์'],
+    cau:['อาจดูเป็นกลางจนไม่มีตัวตน','ระวังอย่าให้การรักษาสมดุลกลายเป็นการหลีกเลี่ยงความขัดแย้ง'],
+    good:['SCB','APB','VPB'], warn:['AWM','AWI'] },
+  SPI:{ name:'ผู้ให้พื้นที่', en:'The Thoughtful Space-Giver',
+    desc:'คุณเข้าใจคุณค่าของพื้นที่ส่วนตัวในความสัมพันธ์เป็นอย่างดี มีความมั่นคงทางอารมณ์ สื่อสารได้ดี และรักษาขอบเขตของตัวเอง คุณเป็นคู่ที่ดีสำหรับคนที่ต้องการพื้นที่เช่นเดียวกัน',
+    str:['เคารพขอบเขตและความเป็นส่วนตัว','สื่อสารความต้องการได้ชัดเจน','ไม่ possessive'],
+    cau:['อาจดูเย็นชาสำหรับคนที่ต้องการความใกล้ชิดสูง','ต้องแน่ใจว่าระยะห่างไม่กลายเป็นความห่างเหิน'],
+    good:['VPI','VCI','SCI'], warn:['ACM','APM','AWM'] },
+  SWM:{ name:'ผู้รักเงียบๆ', en:'The Silent Keeper',
+    desc:'คุณมีความรักและความใส่ใจลึกซึ้ง แต่ชอบแสดงออกผ่านการกระทำมากกว่าคำพูด คุณมักหลีกเลี่ยงความขัดแย้งเพื่อรักษาบรรยากาศ แต่ความต้องการความใกล้ชิดของคุณยังสูงอยู่',
+    str:['แสดงความรักผ่านการกระทำ','สร้างบรรยากาศที่อบอุ่น','ไม่ชอบทำให้ปัญหาบานปลาย'],
+    cau:['การหลีกเลี่ยงอาจทำให้ปัญหาสะสมจนล้น','ความต้องการความใกล้ชิดที่ไม่แสดงออกอาจทำให้แฟนสับสน'],
+    good:['SPM','SPI','VPB'], warn:['ACM','ACI','AWI'] },
+  SWB:{ name:'ผู้สนับสนุนเงียบๆ', en:'The Quiet Supporter',
+    desc:'คุณน่าไว้วางใจและให้ความรู้สึกปลอดภัย แต่ไม่ชอบความวุ่นวาย คุณสนับสนุนแฟนอยู่เงียบๆ และต้องการความสมดุลในชีวิต ความมั่นคงของคุณทำให้แฟนรู้สึกพักพิงได้',
+    str:['น่าไว้วางใจและสม่ำเสมอ','ไม่ขยายเรื่องเล็กให้เป็นเรื่องใหญ่','สมดุลในชีวิต'],
+    cau:['อาจเก็บความรู้สึกไว้จนล้น','ต้องฝึกพูดเรื่องยากๆ ให้มากขึ้น'],
+    good:['SCM','SPM','VPB'], warn:['ACM','APM'] },
+  SWI:{ name:'ผู้เป็นอิสระที่เงียบ', en:'The Serene Loner',
+    desc:'คุณมีความมั่นคงในตัวเองสูง ไม่ต้องการการยืนยันจากคนอื่น และชอบจัดการปัญหาด้วยตัวเองโดยไม่สร้างความขัดแย้ง เมื่อเปิดใจแล้วจะลึกและมั่นคงมาก',
+    str:['พึ่งพาตัวเองได้สูง','ไม่ drama','มั่นคงและเชื่อถือได้'],
+    cau:['อาจดูห่างเหินหรือไม่แคร์','ต้องการแฟนที่เข้าใจความต้องการพื้นที่ของคุณ'],
+    good:['VWI','VPI','SPI'], warn:['ACM','APM','AWM'] },
+  ACM:{ name:'ผู้ยึดครองที่ร้อนแรง', en:'The Intense Devotee',
+    desc:'คุณรักอย่างเต็มที่ ต้องการความใกล้ชิดสูง และไม่กลัวที่จะแสดงออก ความหลงใหลและความทุ่มเทของคุณน่าประทับใจ แต่ความวิตกกังวลในการผูกพันอาจทำให้คุณต้องการการยืนยันบ่อยครั้ง',
+    str:['รักอย่างเต็มที่และจริงจัง','กล้าแสดงความรู้สึก','ทุ่มเทในความสัมพันธ์'],
+    cau:['อาจดู clingy หรือ possessive','ความต้องการการยืนยันอาจทำให้แฟนเหนื่อย','ต้องฝึกรับมือกับความไม่แน่นอน'],
+    good:['SPB','SWB','SPI'], warn:['VWI','VCI','SWI'] },
+  ACB:{ name:'นักต่อสู้ผู้ร้อนใจ', en:'The Passionate Negotiator',
+    desc:'คุณรักอย่างเต็มที่และไม่กลัวที่จะพูดตรงๆ เมื่อมีปัญหา ความกระตือรือร้นในความสัมพันธ์เป็นทั้งจุดแข็งและจุดที่ต้องระวัง เพราะบางครั้งอารมณ์อาจนำหน้าเหตุผล',
+    str:['กล้าพูดความจริง','รักและทุ่มเท','ไม่ยอมปล่อยปัญหาไว้โดยไม่แก้'],
+    cau:['อาจพูดโดยไม่ระวังคำ','ความวิตกกังวลอาจทำให้ conflict บานปลาย','ต้องฝึกฟังมากขึ้น'],
+    good:['SPB','SWB','VPB'], warn:['VWI','AWI','VCI'] },
+  ACI:{ name:'ผู้ขัดแย้งที่โหยหา', en:'The Yearning Challenger',
+    desc:'คุณต้องการความใกล้ชิดอย่างลึกซึ้ง แต่ก็ต้องการอิสรภาพในเวลาเดียวกัน ความขัดแย้งภายในนี้ทำให้คุณดูซับซ้อน แต่ก็เป็นคนที่น่าสนใจและมีความลึก',
+    str:['มีความลึกทางอารมณ์','กล้าสื่อสารความต้องการ','รักษาความเป็นตัวเอง'],
+    cau:['ความต้องการที่ขัดแย้งกันอาจทำให้แฟนสับสน','ต้องทำความเข้าใจตัวเองให้ชัดขึ้น'],
+    good:['SPB','SPI','SCB'], warn:['AWM','VWM','ACM'] },
+  APM:{ name:'ผู้แสวงหาความรัก', en:'The Love Seeker',
+    desc:'คุณเปิดใจต่อความรักและต้องการความใกล้ชิดอย่างแท้จริง คุณพร้อมจะทุ่มเทและรับฟัง แต่ความวิตกกังวลในการผูกพันอาจทำให้คุณต้องการความมั่นใจบ่อยกว่าที่ควร',
+    str:['เปิดใจรับฟัง','ทุ่มเทในความสัมพันธ์','ต้องการความใกล้ชิดอย่างแท้จริง'],
+    cau:['ความต้องการการยืนยันอาจเป็นภาระให้แฟน','ต้องสร้างความมั่นคงภายในตัวเองด้วย'],
+    good:['SCM','SWB','SPM'], warn:['VWI','SWI','VCI'] },
+  APB:{ name:'ผู้รักที่ใจอ่อน', en:'The Tender Processor',
+    desc:'คุณมีหัวใจที่อ่อนโยนและพร้อมรับฟัง ต้องการความสัมพันธ์ที่สมดุลและปลอดภัย คุณใส่ใจความรู้สึกของแฟนและพยายามทำความเข้าใจก่อนตัดสิน',
+    str:['เห็นอกเห็นใจและรับฟัง','สร้างพื้นที่ปลอดภัยทางอารมณ์','สมดุลในความต้องการ'],
+    cau:['อาจยอมมากเกินไปเพื่อรักษาความสัมพันธ์','ต้องรักษาความต้องการของตัวเองด้วย'],
+    good:['SCM','SCB','SPB'], warn:['VWI','VCI'] },
+  API:{ name:'จิตวิญญาณที่โหยหา', en:'The Longing Soul',
+    desc:'คุณต้องการความรักที่ลึกซึ้ง แต่ก็ต้องการอิสรภาพ ความขัดแย้งนี้ทำให้คุณมักรู้สึกว่าความสัมพันธ์ไม่ได้ให้ทั้งสองอย่างในเวลาเดียวกัน การทำความเข้าใจตัวเองจะช่วยได้มาก',
+    str:['ลึกซึ้งทางอารมณ์','ต้องการความรักที่แท้จริง','รักษาตัวตน'],
+    cau:['ความต้องการที่ขัดแย้งอาจทำให้แฟนไม่รู้จะทำอย่างไร','ต้องการ self-awareness สูง'],
+    good:['SPB','SPI','SCB'], warn:['ACM','AWM','VWM'] },
+  AWM:{ name:'ผู้ยึดครองที่เก็บกด', en:'The Conflicted Clinger',
+    desc:'คุณต้องการความใกล้ชิดอย่างลึกซึ้ง แต่เมื่อเกิดความขัดแย้งมักเลือกเก็บกดแทนที่จะพูดตรงๆ ส่งผลให้ความรู้สึกสะสมและระเบิดออกมาในภายหลัง การฝึกพูดอย่างตรงไปตรงมาจะเปลี่ยนชีวิตรักของคุณ',
+    str:['ทุ่มเทในความสัมพันธ์','รักอย่างเต็มที่','ใส่ใจแฟนมาก'],
+    cau:['ความรู้สึกที่สะสมอาจระเบิดออกมาโดยไม่คาดคิด','ความต้องการที่ไม่แสดงออกทำให้แฟนสับสน'],
+    good:['SCM','SCB','SPB'], warn:['VWI','VCI','SWI'] },
+  AWB:{ name:'หัวใจที่สับสน', en:'The Conflicted Heart',
+    desc:'คุณต้องการความสัมพันธ์ที่สมดุล แต่ความวิตกกังวลในการผูกพันและแนวโน้มที่จะเก็บกดทำให้คุณไม่ได้รับสิ่งที่ต้องการ การเรียนรู้สื่อสารความรู้สึกจะช่วยได้มาก',
+    str:['ต้องการความสมดุลที่แท้จริง','ใส่ใจแฟน','ไม่ชอบ drama'],
+    cau:['ความวิตกกังวลและการเก็บกดทำงานร่วมกันเป็นลบ','ต้องฝึก assertiveness'],
+    good:['SCM','SCB','SPB'], warn:['VWI','VCI'] },
+  AWI:{ name:'ผู้โดดเดี่ยวที่กลัว', en:'The Fearful Wanderer',
+    desc:'คุณต้องการความรัก แต่กลัวความใกล้ชิด ต้องการอิสรภาพ แต่กลัวการถูกทอดทิ้ง ความขัดแย้งภายในนี้อาจทำให้ความสัมพันธ์ซับซ้อน แต่เมื่อพบคนที่อดทนพอ คุณจะเป็นคู่ที่ลึกซึ้งมาก',
+    str:['ลึกซึ้งและซับซ้อน','ต้องการความรักแท้จริง'],
+    cau:['ความกลัวการผูกพันอาจ self-sabotage ความสัมพันธ์','ต้องการการ work on self อย่างจริงจัง'],
+    good:['SCB','SPB','SPI'], warn:['ACM','APM','AWM'] },
+  VCM:{ name:'นักล่าที่ระวังตัว', en:'The Guarded Pursuer',
+    desc:'คุณมีแนวโน้มรักษาระยะห่างทางอารมณ์ แต่ก็ต้องการความใกล้ชิด และกล้าพูดตรงๆ เมื่อมีปัญหา ความขัดแย้งระหว่างการหลีกเลี่ยงและความต้องการความใกล้ชิดทำให้คุณดูซับซ้อน',
+    str:['ตรงไปตรงมาและชัดเจน','ต้องการความสัมพันธ์ที่แท้จริง'],
+    cau:['ความขัดแย้งภายในอาจสร้างสัญญาณที่สับสน','ต้องการ self-awareness'],
+    good:['SPB','SWB','SPI'], warn:['ACM','APM','AWM'] },
+  VCB:{ name:'นักวิเคราะห์ที่ระมัดระวัง', en:'The Careful Fighter',
+    desc:'คุณชอบคิดก่อนพูด ต้องการพื้นที่ส่วนตัว และกล้าพูดตรงๆ แต่อย่างระมัดระวัง คุณ conflict แล้วหาทางออกได้ดี แต่อาจต้องใช้เวลา',
+    str:['คิดก่อนพูด','หาทางออกได้ดี','ไม่ reactive'],
+    cau:['อาจดูห่างเหิน','ต้องการแฟนที่เข้าใจจังหวะของคุณ'],
+    good:['SPB','SWB','SPI'], warn:['ACM','AWM','APM'] },
+  VCI:{ name:'ผู้เป็นอิสระที่แกร่ง', en:'The Self-Sufficient Challenger',
+    desc:'คุณพึ่งพาตัวเองได้สูง ไม่ต้องการใครมาเติมเต็ม และกล้าพูดตรงๆ เมื่อมีปัญหา คุณเป็นคู่ที่ท้าทายแต่น่าเคารพ',
+    str:['พึ่งพาตัวเองสูง','ตรงไปตรงมา','ชัดเจนในขอบเขต'],
+    cau:['อาจดูแข็งกระด้างหรือไม่ต้องการใคร','ต้องการแฟนที่แข็งแกร่งพอๆ กัน'],
+    good:['SCI','SPI','VPI'], warn:['ACM','APM','AWM'] },
+  VPM:{ name:'ผู้รักที่ระวังตัว', en:'The Reserved Connector',
+    desc:'คุณต้องการความใกล้ชิดแต่กลัวความเสี่ยง คุณคิดและรับฟังก่อนแสดงปฏิกิริยา แต่เมื่อรู้สึกปลอดภัยแล้วคุณจะเปิดใจอย่างลึกซึ้ง',
+    str:['รับฟังและใคร่ครวญ','ต้องการความสัมพันธ์ที่ลึกซึ้ง'],
+    cau:['การระวังตัวมากเกินไปอาจทำให้คนอื่นรู้สึกถูกผลักออก','ต้องเรียนรู้เปิดใจทีละน้อย'],
+    good:['SCM','SPM','SWB'], warn:['ACM','ACI','AWM'] },
+  VPB:{ name:'นักสมดุลที่ระมัดระวัง', en:'The Cautious Balancer',
+    desc:'คุณต้องการความสมดุลในความสัมพันธ์และชอบคิดก่อนแสดงปฏิกิริยา คุณเป็นกลาง ไม่ drama และรักษาขอบเขตได้ดี',
+    str:['สมดุลและไม่ reactive','รักษาขอบเขตได้ดี','คิดก่อนพูด'],
+    cau:['อาจดูไม่ engaged หรือห่างเหิน','ต้องการแฟนที่เข้าใจและไม่รีบร้อน'],
+    good:['SCB','SPB','SWB'], warn:['ACM','AWM','APM'] },
+  VPI:{ name:'ผู้ประมวลผลส่วนตัว', en:'The Private Processor',
+    desc:'คุณต้องการพื้นที่ส่วนตัวเป็นสิ่งสำคัญมาก และชอบจัดการความรู้สึกด้วยตัวเองก่อนที่จะพูดกับแฟน คุณเป็นคนที่ลึกซึ้งและต้องการเวลา',
+    str:['รู้จักตัวเอง','ไม่ dependent','มีชีวิตของตัวเองที่สมบูรณ์'],
+    cau:['อาจปิดกั้นความสัมพันธ์โดยไม่ตั้งใจ','ต้องหาจังหวะที่จะเปิดใจ'],
+    good:['SPI','SCI','SWI'], warn:['ACM','APM','AWM'] },
+  VWM:{ name:'ผู้ยึดครองที่ห่างเหิน', en:'The Distant Clinger',
+    desc:'คุณต้องการความใกล้ชิดแต่กลัวมัน เลือกหลีกเลี่ยงความขัดแย้ง และมักสับสนว่าต้องการอะไรกันแน่ ความสัมพันธ์ของคุณมักจะ push-pull',
+    str:['ต้องการความรักที่ลึกซึ้ง','ไม่ชอบทำร้ายคนอื่น'],
+    cau:['push-pull dynamics อาจทำร้ายทั้งสองฝ่าย','ต้องการ self-work อย่างจริงจัง'],
+    good:['SPB','SWB'], warn:['ACM','AWM','APM'] },
+  VWB:{ name:'ผู้สงวนตัวที่สมดุล', en:'The Protected Wanderer',
+    desc:'คุณต้องการความสมดุล ไม่ชอบความขัดแย้ง และรักษาระยะห่างทางอารมณ์เอาไว้ คุณดูแลตัวเองได้ดีและไม่ต้องการความสนใจมาก',
+    str:['ดูแลตัวเองได้','ไม่สร้างปัญหา','สมดุลในชีวิต'],
+    cau:['อาจดูเหมือนไม่แคร์ความสัมพันธ์','ต้องแสดงให้แฟนเห็นว่าใส่ใจ'],
+    good:['SPI','SWB','SPB'], warn:['ACM','APM','AWM'] },
+  VWI:{ name:'ป้อมปราการ', en:'The Fortress',
+    desc:'คุณสร้างกำแพงสูงรอบตัวเอง ต้องการอิสรภาพ หลีกเลี่ยงความขัดแย้ง และไม่ต้องการพึ่งพาใคร เมื่อเชื่อใจแล้วจะซื่อสัตย์และลึกซึ้งมาก แต่กว่าจะถึงจุดนั้นต้องใช้เวลา',
+    str:['อิสระและพึ่งพาตัวเองได้','ซื่อสัตย์','ไม่ drama'],
+    cau:['กำแพงที่สูงอาจทำให้ความสัมพันธ์ไม่ลึกซึ้ง','ต้องระวังการปิดกั้นความรัก'],
+    good:['SWI','SPI','VPI'], warn:['ACM','APM','AWM','SCM'] }
+};
+
+// Groups for the Types page
+const TYPE_GROUPS = [
+  { badge:'S — Secure', name:'มั่นคง', sub:'Attachment: Secure',
+    codes:['SCM','SCB','SCI','SPM','SPB','SPI','SWM','SWB','SWI'] },
+  { badge:'A — Anxious', name:'วิตกกังวล', sub:'Attachment: Anxious',
+    codes:['ACM','ACB','ACI','APM','APB','API','AWM','AWB','AWI'] },
+  { badge:'V — Avoidant', name:'หลีกเลี่ยง', sub:'Attachment: Avoidant',
+    codes:['VCM','VCB','VCI','VPM','VPB','VPI','VWM','VWB','VWI'] }
+];
+
+// ─── STATE ───────────────────────────────────────────────────
+let cur = 0;
+let sc = {S:0,A:0,V:0,C:0,P:0,W:0,M:0,B:0,I:0};
+let shown = {attachment:false,conflict:false,closeness:false};
+let pending = null;
+let answers = [];
+
+// ─── QUIZ SCREENS ────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active','visible'));
+  const el = document.getElementById('scr-'+id);
+  el.classList.add('active');
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('visible')));
+}
+
+function startQuiz() {
+  cur = 0;
+  sc = {S:0,A:0,V:0,C:0,P:0,W:0,M:0,B:0,I:0};
+  shown = {attachment:false,conflict:false,closeness:false};
+  pending = null;
+  answers = [];
+  next();
+}
+
+function sectionOf(i) {
+  if (i < 12) return SECTIONS[0];
+  if (i < 22) return SECTIONS[1];
+  return SECTIONS[2];
+}
+
+function next() {
+  if (cur >= Q.length) { renderResult(); return; }
+  const sec = sectionOf(cur);
+  if (!shown[sec.id]) {
+    pending = sec.id;
+    document.getElementById('sa-part').textContent = sec.part;
+    document.getElementById('sa-title').textContent = sec.title;
+    document.getElementById('sa-desc').textContent = sec.desc;
+    show('section');
+    return;
+  }
+  renderQ();
+}
+
+function continueSection() {
+  if (pending) { shown[pending] = true; pending = null; }
+  renderQ();
+}
+
+function renderQ() {
+  const q = Q[cur];
+  const sec = sectionOf(cur);
+  const n = cur + 1, total = Q.length;
+  document.getElementById('prog-fill').style.width = (n/total*100)+'%';
+  document.getElementById('prog-num').textContent = n+' / '+total;
+  document.getElementById('q-tag').textContent = sec.en;
+  document.getElementById('q-text').textContent = q.q;
+  document.getElementById('q-scenario').textContent = q.s;
+  document.getElementById('txt-a').textContent = q.a;
+  document.getElementById('txt-b').textContent = q.b;
+  show('question');
+}
+
+function answer(ch) {
+  const s = ch==='A' ? Q[cur].sA : Q[cur].sB;
+  sc[s[0]] += s[1];
+  sc[s[2]] += s[3];
+  answers.push(ch);
+  cur++;
+  next();
+}
+
+// ─── SCORING ─────────────────────────────────────────────────
+function best(dims, def) {
+  const sorted = [...dims].sort((a,b) => sc[b]-sc[a]);
+  return (sc[sorted[0]] - sc[sorted[1]] < 3) ? def : sorted[0];
+}
+function calcCode() {
+  return best(['S','A','V'],'S') + best(['C','P','W'],'P') + best(['M','B','I'],'B');
+}
+
+// ─── RESULT ──────────────────────────────────────────────────
+function renderResult() {
+  const code = calcCode();
+  const t = TYPES[code] || TYPES['SPB'];
+
+  document.getElementById('result-body').innerHTML = `
+    <div class="result-card">
+      <div class="result-code">${code}</div>
+      <div class="result-name-th">${t.name}</div>
+      <div class="result-name-en">${t.en}</div>
+      <div class="result-rule"></div>
+      <div class="result-desc">${t.desc}</div>
+    </div>
+
+    <div class="r-label">จุดแข็ง</div>
+    <div class="tag-row">${t.str.map(s=>`<span class="tag tag-plain">${s}</span>`).join('')}</div>
+
+    <div class="r-label">สิ่งที่ต้องระวัง</div>
+    <div class="caution-text">${t.cau.join('<br>')}</div>
+
+    <div class="r-label">คู่ที่เข้ากันได้ดี</div>
+    <div class="tag-row">${t.good.map(c=>`<span class="tag tag-filled">${c}</span>`).join('')}</div>
+
+    <div class="r-label">คู่ที่ต้องระวัง</div>
+    <div class="tag-row">${t.warn.map(c=>`<span class="tag tag-muted">${c}</span>`).join('')}</div>
+
+    <div class="cta-wrap">
+      <button class="btn-primary" onclick="copyShare('${code}','${t.name}')">
+        ให้แฟนหรือเพื่อนลองทำ — คัดลอกลิงก์
+      </button>
+      <div class="copy-msg" id="copy-msg"></div>
+      <button class="btn-outline" onclick="goTypes()">ดู RCE Types ทั้งหมด →</button>
+      <button class="btn-ghost" disabled>ดู Affection Language ของคุณ (เร็วๆ นี้)</button>
+      <button class="btn-ghost" onclick="startQuiz()" style="margin-top:6px">ทำใหม่อีกครั้ง</button>
+    </div>
+    <div id="sheet-status" style="text-align:center;font-size:12px;color:#bbb;min-height:20px;margin-top:12px"></div>
+    <div style="height:48px"></div>
+  `;
+  show('result');
+  sendToSheet(code);
+}
+
+function copyShare(code, name) {
+  const url = location.href.split('?')[0].split('#')[0];
+  const txt = `ฉันเป็น ${code} — ${name}\nคุณเป็น RCE Type อะไร? ลองทำได้ที่ ${url}`;
+  const done = () => {
+    const el = document.getElementById('copy-msg');
+    if (el) { el.textContent = 'คัดลอกแล้ว ✓'; setTimeout(()=>{ if(el) el.textContent=''; },3000); }
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(done).catch(()=>fbCopy(txt,done));
+  } else { fbCopy(txt, done); }
+}
+
+function fbCopy(txt, cb) {
+  const ta = document.createElement('textarea');
+  ta.value = txt; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); cb(); } catch(e){}
+  document.body.removeChild(ta);
+}
+
+function sendToSheet(code) {
+  if (!SHEET_URL || SHEET_URL.includes('YOUR_')) return;
+  const payload = {
+    timestamp: new Date().toISOString(),
+    type: code,
+    S: sc.S, A: sc.A, V: sc.V,
+    C: sc.C, P: sc.P, W: sc.W,
+    M: sc.M, B: sc.B, I: sc.I,
+    answers: answers.join(',')
+  };
+  fetch(SHEET_URL, { method:'POST', mode:'no-cors', body:JSON.stringify(payload) })
+    .catch(() => {})
+    .finally(() => { if (el) el.textContent = ''; });
+}
+
+// ─── TYPES PAGE ───────────────────────────────────────────────
+function goTypes() {
+  location.hash = '#/types';
+  openTypesPage();           // don't rely solely on hashchange
+}
+
+function openTypesPage() {
+  if (!document.getElementById('tp-groups').children.length) {
+    renderTypesPage();
+  }
+  document.getElementById('page-types').classList.add('open');
+  // scrollTop after display:block kicks in
+  requestAnimationFrame(() => {
+    document.getElementById('page-types').scrollTop = 0;
+  });
+}
+
+function backFromTypes() {
+  location.hash = '';        // update URL
+  closeTypesPage();          // directly hide — don't rely on hashchange
+}
+
+function closeTypesPage() {
+  document.getElementById('page-types').classList.remove('open');
+  closeModal();
+}
+
+function shortDesc(d) {
+  // Take up to 58 chars for card preview
+  return d.length > 58 ? d.slice(0, 56) + '…' : d;
+}
+
+function renderTypesPage() {
+  const container = document.getElementById('tp-groups');
+  container.innerHTML = TYPE_GROUPS.map(g => `
+    <div class="tp-group">
+      <div class="tp-group-hd">
+        <div class="tp-group-badge">${g.badge}</div>
+        <div class="tp-group-info">
+          <div class="tp-group-name">${g.name}</div>
+          <div class="tp-group-sub">${g.sub}</div>
+        </div>
+        <div class="tp-group-rule"></div>
+      </div>
+      <div class="tp-grid">
+        ${g.codes.map(code => {
+          const t = TYPES[code];
+          if (!t) return '';
+          return `
+            <div class="tp-card" onclick="openModal('${code}')">
+              <div class="tp-card-code">${code}</div>
+              <div class="tp-card-name">${t.name}</div>
+              <div class="tp-card-en">${t.en}</div>
+              <div class="tp-card-rule"></div>
+              <div class="tp-card-short">${shortDesc(t.desc)}</div>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── MODAL ────────────────────────────────────────────────────
+function openModal(code) {
+  const t = TYPES[code];
+  if (!t) return;
+
+  const goodBtns = t.good.map(c =>
+    `<button class="tm-match-btn tm-match-good" onclick="openModal('${c}')">${c}</button>`
+  ).join('');
+  const warnBtns = t.warn.map(c =>
+    `<button class="tm-match-btn tm-match-warn" onclick="openModal('${c}')">${c}</button>`
+  ).join('');
+  const strTags = t.str.map(s => `<span class="tm-str-tag">${s}</span>`).join('');
+
+  document.getElementById('tm-body').innerHTML = `
+    <div class="tm-code">${code}</div>
+    <div class="tm-name">${t.name}</div>
+    <div class="tm-en">${t.en}</div>
+    <div class="tm-rule"></div>
+    <div class="tm-desc">${t.desc}</div>
+
+    <div class="tm-label">จุดแข็ง</div>
+    <div class="tm-tags">${strTags}</div>
+
+    <div class="tm-label">สิ่งที่ต้องระวัง</div>
+    <div class="tm-cau">${t.cau.join('<br>')}</div>
+
+    <div class="tm-label">คู่ที่เข้ากันได้ดี — คลิกเพื่อดู Type นั้น</div>
+    <div class="tm-tags">${goodBtns}</div>
+
+    <div class="tm-label">คู่ที่ต้องระวัง</div>
+    <div class="tm-tags">${warnBtns}</div>
+
+    <div style="height:8px"></div>
+  `;
+
+  // Scroll modal panel to top
+  const panel = document.getElementById('tm-panel');
+  panel.scrollTop = 0;
+
+  const modal = document.getElementById('type-modal');
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('type-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); closeCompatModal(); }
+});
+
+// ─── COMPAT ───────────────────────────────────────────────────
+const ALL_CODES = [
+  'SCM','SCB','SCI','SPM','SPB','SPI','SWM','SWB','SWI',
+  'ACM','ACB','ACI','APM','APB','API','AWM','AWB','AWI',
+  'VCM','VCB','VCI','VPM','VPB','VPI','VWM','VWB','VWI'
+];
+
+function getCompat(a, b) {
+  if (a === b) {
+    const a1 = a[0], a2 = a[1];
+    if (a2 === 'W') return 'self-warn';
+    if (a1 === 'S') return 'self-good';
+    if (a1 === 'A') return 'self-warn';
+    return 'self-neutral'; // Avoidant, non-W
+  }
+  const a1=a[0],a2=a[1],a3=a[2],b1=b[0],b2=b[1],b3=b[2];
+  if ((a1==='A'&&b1==='V')||(a1==='V'&&b1==='A')) return 'warn';
+  if (a1==='A'&&b1==='A') return 'warn';
+  if ((a2==='C'&&b2==='W')||(a2==='W'&&b2==='C')) return 'warn';
+  if ((a3==='M'&&b3==='I')||(a3==='I'&&b3==='M')) return 'warn';
+  let pts = 0;
+  if (a1===b1) pts += 2;
+  if (a1==='S'||b1==='S') pts++;
+  if (a2===b2 && a2!=='W') pts += 2;
+  if (a3===b3) pts++;
+  return pts >= 3 ? 'good' : 'neutral';
+}
+
+function buildReason(a, b) {
+  if (a === b) {
+    const c = getCompat(a, b);
+    if (c === 'self-warn') return a + ' — Type เดียวกัน\nต้องระวัง: ความขัดแย้งถูกเก็บกดหรือความวิตกกังวลขยายเพิ่ม';
+    if (c === 'self-neutral') return a + ' — Type เดียวกัน\nอาจผลักกันออกเพราะต่างต้องการพื้นที่';
+    return a + ' — Type เดียวกัน\nมั่นคงและเข้าใจกันได้ดี';
+  }
+  const a1=a[0],a2=a[1],a3=a[2],b1=b[0],b2=b[1],b3=b[2];
+  const compat = getCompat(a, b);
+  let reason;
+  if (compat === 'warn') {
+    if ((a1==='A'&&b1==='V')||(a1==='V'&&b1==='A'))
+      reason = 'Anxious + Avoidant — ความต้องการความใกล้ชิดสวนทาง สร้างวงจรตามและถอย';
+    else if (a1==='A'&&b1==='A')
+      reason = 'Anxious + Anxious — ต่างกังวลทั้งคู่ อาจขยายความไม่มั่นคงซึ่งกันและกัน';
+    else if ((a2==='C'&&b2==='W')||(a2==='W'&&b2==='C'))
+      reason = 'Confronting + Withdrawing — คนหนึ่งอยากคุย อีกคนถอยออก ความขัดแย้งคั่งค้าง';
+    else
+      reason = 'Merger + Independent — ความต้องการความใกล้ชิดต่างขั้ว อาจรู้สึกถูกรัดหรือถูกทอดทิ้ง';
+  } else if (compat === 'good') {
+    if (a1===b1)
+      reason = 'Attachment เดียวกัน — เข้าใจรูปแบบการผูกพันของกันและกัน';
+    else if (a1==='S'||b1==='S')
+      reason = 'มี Secure attachment — ช่วยสร้างความมั่นคงในความสัมพันธ์';
+    else
+      reason = 'Conflict style เดียวกัน — รับมือความขัดแย้งในแบบเดียวกัน';
+  } else {
+    reason = 'ต้องการความเข้าใจและการปรับตัวซึ่งกันและกัน';
+  }
+  return a + ' + ' + b + '\n' + reason;
+}
+
+let compatRendered = false;
+let hlType = null;
+
+function renderCompatPage() {
+  const container = document.getElementById('cp-table-container');
+  let html = '<table class="cp-table"><thead><tr><th class="ct-corner"></th>';
+  ALL_CODES.forEach(c => {
+    html += `<th class="ct-col-hd" data-type="${c}">${c}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  ALL_CODES.forEach(row => {
+    html += `<tr><td class="ct-row-hd" data-type="${row}">${row}</td>`;
+    ALL_CODES.forEach(col => {
+      const compat = getCompat(row, col);
+      html += `<td class="ct-cell ct-${compat}" data-row="${row}" data-col="${col}"></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+  compatRendered = true;
+}
+
+function setHlType(type) {
+  hlType = (hlType === type) ? null : type;
+  const container = document.getElementById('cp-table-container');
+  container.querySelectorAll('.ct-col-hd,.ct-row-hd,.ct-cell').forEach(el => el.classList.remove('hl'));
+  if (!hlType) return;
+  container.querySelectorAll(`.ct-col-hd[data-type="${hlType}"]`).forEach(el => el.classList.add('hl'));
+  container.querySelectorAll(`.ct-row-hd[data-type="${hlType}"]`).forEach(el => el.classList.add('hl'));
+  container.querySelectorAll(`.ct-cell[data-row="${hlType}"],.ct-cell[data-col="${hlType}"]`).forEach(el => el.classList.add('hl'));
+}
+
+const isTouchDevice = () => window.matchMedia('(pointer:coarse)').matches;
+
+document.addEventListener('click', e => {
+  const compatOpen = document.getElementById('page-compat').classList.contains('open');
+  if (!compatOpen) return;
+  const cell = e.target.closest('.ct-cell');
+  const hd = e.target.closest('.ct-col-hd, .ct-row-hd');
+  if (cell) {
+    hideTooltip();
+    openCompatModal(cell.dataset.row, cell.dataset.col);
+    return;
+  }
+  if (hd) { setHlType(hd.dataset.type); hideTooltip(); return; }
+  hideTooltip();
+});
+
+document.addEventListener('mouseover', e => {
+  const compatOpen = document.getElementById('page-compat').classList.contains('open');
+  if (!compatOpen || isTouchDevice()) return;
+  const cell = e.target.closest('.ct-cell');
+  if (cell) showTooltip(e, buildReason(cell.dataset.row, cell.dataset.col));
+});
+
+document.addEventListener('mouseout', e => {
+  if (e.target.closest('.ct-cell')) hideTooltip();
+});
+
+document.addEventListener('mousemove', e => {
+  const tt = document.getElementById('cp-tooltip');
+  if (tt && tt.style.display === 'block') positionTooltip(e);
+});
+
+function buildReasonShort(a, b) {
+  if (a === b) {
+    const c = getCompat(a, b);
+    if (c === 'self-warn') return 'Type เดียวกัน — ความขัดแย้งถูกเก็บกดหรือความวิตกกังวลขยายเพิ่ม';
+    if (c === 'self-neutral') return 'Type เดียวกัน — อาจผลักกันออกเพราะต่างต้องการพื้นที่';
+    return 'Type เดียวกัน — มั่นคงและเข้าใจกันได้ดี';
+  }
+  const a1=a[0],a2=a[1],a3=a[2],b1=b[0],b2=b[1],b3=b[2];
+  const compat = getCompat(a, b);
+  if (compat === 'warn') {
+    if ((a1==='A'&&b1==='V')||(a1==='V'&&b1==='A')) return 'Anxious + Avoidant — ความต้องการความใกล้ชิดสวนทางกัน';
+    if (a1==='A'&&b1==='A') return 'วิตกกังวลทั้งคู่ — อาจขยายความไม่มั่นคงซึ่งกันและกัน';
+    if ((a2==='C'&&b2==='W')||(a2==='W'&&b2==='C')) return 'Confronting + Withdrawing — คนหนึ่งอยากคุย อีกคนถอยออก';
+    return 'Merger + Independent — ความต้องการความใกล้ชิดต่างขั้ว';
+  }
+  if (compat === 'good') {
+    if (a1===b1) return 'Attachment เดียวกัน — เข้าใจรูปแบบการผูกพันของกันและกัน';
+    if (a1==='S'||b1==='S') return 'มี Secure attachment — ช่วยสร้างความมั่นคงในความสัมพันธ์';
+    return 'Conflict style เดียวกัน — รับมือความขัดแย้งในแบบเดียวกัน';
+  }
+  return 'ต้องการความเข้าใจและการปรับตัวซึ่งกันและกัน';
+}
+
+function openCompatModal(a, b) {
+  const ta = TYPES[a], tb = TYPES[b];
+  if (!ta || !tb) return;
+  const compat = getCompat(a, b);
+  const badgeClass = {good:'cm-badge-good',neutral:'cm-badge-neutral',warn:'cm-badge-warn','self-good':'cm-badge-good','self-neutral':'cm-badge-neutral','self-warn':'cm-badge-warn'}[compat];
+  const badgeLabel = {good:'เข้ากันได้ดี',neutral:'ปานกลาง',warn:'ต้องระวัง','self-good':'Type เดียวกัน','self-neutral':'Type เดียวกัน','self-warn':'Type เดียวกัน'}[compat];
+  const badge = document.getElementById('cm-badge');
+  badge.className = 'cm-badge ' + badgeClass;
+  badge.textContent = badgeLabel;
+  document.getElementById('cm-reason').textContent = a + ' + ' + b + ' — ' + buildReasonShort(a, b);
+  document.getElementById('cm-body').innerHTML = [a, b].map(code => {
+    const t = TYPES[code];
+    const strTags = t.str.map(s => `<span class="cm-str-tag">${s}</span>`).join('');
+    return `<div class="cm-col">
+      <div class="cm-col-code">${code}</div>
+      <div class="cm-col-name">${t.name}</div>
+      <div class="cm-col-en">${t.en}</div>
+      <div class="cm-col-rule"></div>
+      <div class="cm-col-desc">${t.desc}</div>
+      <div class="cm-col-label">จุดแข็ง</div>
+      <div>${strTags}</div>
+      <div class="cm-col-label">สิ่งที่ต้องระวัง</div>
+      <div class="cm-cau">${t.cau.join('<br>')}</div>
+    </div>`;
+  }).join('');
+  const panel = document.getElementById('compat-modal');
+  panel.querySelector('.cm-panel').scrollTop = 0;
+  panel.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCompatModal() {
+  document.getElementById('compat-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function showTooltip(e, text) {
+  const tt = document.getElementById('cp-tooltip');
+  tt.textContent = text;
+  tt.style.display = 'block';
+  positionTooltip(e);
+}
+
+function positionTooltip(e) {
+  const tt = document.getElementById('cp-tooltip');
+  let x = e.clientX + 16, y = e.clientY + 16;
+  if (x + tt.offsetWidth > window.innerWidth - 8) x = e.clientX - tt.offsetWidth - 8;
+  if (y + tt.offsetHeight > window.innerHeight - 8) y = e.clientY - tt.offsetHeight - 8;
+  tt.style.left = x + 'px';
+  tt.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  const tt = document.getElementById('cp-tooltip');
+  if (tt) tt.style.display = 'none';
+}
+
+function showInfobar(text) {
+  document.getElementById('cp-infobar-text').textContent = text;
+  document.getElementById('cp-infobar').style.display = 'block';
+}
+
+function goCompat() {
+  location.hash = '#/compatibility';
+  openCompatPage();
+}
+
+function openCompatPage() {
+  if (!compatRendered) renderCompatPage();
+  document.getElementById('page-compat').classList.add('open');
+  requestAnimationFrame(() => { document.getElementById('page-compat').scrollTop = 0; });
+  hideTooltip();
+}
+
+function backFromCompat() {
+  location.hash = '';
+  closeCompatPage();
+}
+
+function closeCompatPage() {
+  document.getElementById('page-compat').classList.remove('open');
+  hideTooltip();
+  document.getElementById('cp-infobar').style.display = 'none';
+}
+
+// ─── ROUTING ─────────────────────────────────────────────────
+function router() {
+  const h = location.hash;
+  if (h === '#/types') { closeCompatPage(); openTypesPage(); }
+  else if (h === '#/compatibility') { closeTypesPage(); openCompatPage(); }
+  else { closeCompatPage(); closeTypesPage(); }
+}
+
+window.addEventListener('hashchange', router);
+
+// ─── BOOT ────────────────────────────────────────────────────
+(function boot() {
+  router();
+  if (location.hash !== '#/types' && location.hash !== '#/compatibility') {
+    const intro = document.getElementById('scr-intro');
+    intro.classList.add('active');
+    requestAnimationFrame(() => intro.classList.add('visible'));
+  }
+})();
+</script>
+</body>
+</html>
